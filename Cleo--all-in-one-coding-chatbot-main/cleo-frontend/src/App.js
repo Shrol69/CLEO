@@ -28,27 +28,23 @@ function App() {
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((currentStream) => {
         setStream(currentStream);
-        if (myVideo.current) myVideo.current.srcObject = currentStream;
+        myVideo.current.srcObject = currentStream;
       })
       .catch((err) => console.error("Error accessing media devices:", err));
 
     socket.on("me", (id) => setMe(id));
-
     socket.on("callIncoming", ({ from, signal }) => {
       setReceivingCall(true);
       setCaller(from);
       setCallerSignal(signal);
     });
-
-    socket.on("receiveMessage", ({ sender, message }) => {
-      setMessages((prev) => [...prev, { sender, message }]);
+    socket.on("receiveMessage", ({ }) => {
+      setMessages((prev) => [...prev, { }]);
     });
-
     socket.on("receiveAIResponse", ({ message }) => {
       setAiMessages((prev) => [...prev, { sender: "Cleo (AI)", message }]);
       setLoadingAI(false);
     });
-
     socket.on("userDisconnected", (id) => {
       if (id === caller) {
         leaveCall();
@@ -65,7 +61,7 @@ function App() {
   }, [caller]);
 
   const callUser = (id) => {
-    if (!id.trim()) return alert("Enter a valid ID to call!");
+    if (!id.trim() || id === me) return alert("Enter a valid ID to call!");
 
     const peer = new Peer({ initiator: true, trickle: false, stream });
 
@@ -74,7 +70,7 @@ function App() {
     });
 
     peer.on("stream", (userStream) => {
-      if (userVideo.current) userVideo.current.srcObject = userStream;
+      userVideo.current.srcObject = userStream;
     });
 
     socket.on("callAccepted", (signal) => {
@@ -94,7 +90,7 @@ function App() {
     });
 
     peer.on("stream", (userStream) => {
-      if (userVideo.current) userVideo.current.srcObject = userStream;
+      userVideo.current.srcObject = userStream;
     });
 
     peer.signal(callerSignal);
@@ -109,59 +105,79 @@ function App() {
 
   const sendMessage = () => {
     if (!message.trim()) return;
-
     socket.emit("sendMessage", { sender: me, message });
-    setMessages((prev) => [...prev, { sender: "Me", message }]);
+    setMessages((prev) => [...prev, { sender: "ME", message }]);
     setMessage("");
   };
 
-  const sendAiMessage = () => {
-    if (!aiInput.trim()) return;
-
-    setAiMessages((prev) => [...prev, { sender: "Me", message: aiInput }]);
-    setLoadingAI(true);
-    socket.emit("sendAIMessage", { sender: me, message: aiInput });
-    setAiInput("");
-  };
+  // const sendAiMessage = () => {
+  //   if (!aiInput.trim()) return;
+  //   // setAiMessages((prev) => [...prev, { sender: "Me", message: aiInput }]);
+  //   setLoadingAI(true);
+  //   socket.emit("sendAIMessage", { sender: me, message: aiInput });
+  //   setAiInput("");
+  // };
 
   return (
     <div className="container">
-      <h1>Chat & Video Call App</h1>
-      <div className="video-section">
-        <video ref={myVideo} playsInline muted autoPlay />
-        {callAccepted && !callEnded && <video ref={userVideo} playsInline autoPlay />}
-      </div>
-      <div className="call-controls">
-        <h3>Your ID: {me}</h3>
-        <button onClick={() => navigator.clipboard.writeText(me)}>Copy ID</button>
-        <input type="text" placeholder="Enter ID to call" onChange={(e) => setIdToCall(e.target.value)} />
-        <button onClick={() => callUser(idToCall)}>Call</button>
-        {receivingCall && !callAccepted && <button onClick={answerCall}>Answer</button>}
-        {callAccepted && !callEnded && <button onClick={leaveCall}>End Call</button>}
-      </div>
-      <div className="chat-section">
-        <h3>Chat</h3>
-        <div className="chat-box">
-          {messages.map((msg, index) => (
-            <p key={index}><strong>{msg.sender}</strong>: {msg.message}</p>
-          ))}
+      
+      {/* Left Section - Video Call */}
+      <div className="left-section">
+        <h1>Cleo</h1>
+        <div className="video-section">
+          <div className="video">
+            <h3>My Video</h3>
+            <video ref={myVideo} playsInline muted autoPlay />
+          </div>
+          <div className="video">
+            <h3>Partner's Video</h3>
+            {callAccepted && !callEnded && <video ref={userVideo} playsInline autoPlay />}
+          </div>
         </div>
-        <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type a message..." />
-        <button onClick={sendMessage}>Send</button>
-      </div>
-      <div className="ai-chat-section">
-        <h3>💡 Talk to Cleo (AI)</h3>
-        <div className="chat-box">
-          {aiMessages.map((msg, index) => (
-            <p key={index}><strong style={{ color: msg.sender === "Cleo (AI)" ? "blue" : "black" }}>{msg.sender}</strong>: {msg.message}</p>
-          ))}
-          {loadingAI && <p style={{ color: "gray" }}><strong>Cleo (AI)</strong>: Typing...</p>}
+  
+        <div className="call-controls">
+          <h3>Your ID: {me}</h3>
+          <button onClick={() => navigator.clipboard.writeText(me)}>Copy ID</button>
+          <input type="text" placeholder="Enter ID to call" onChange={(e) => setIdToCall(e.target.value)} />
+          <button onClick={() => callUser(idToCall)}>Call</button>
+          {receivingCall && !callAccepted && <div><h4>Incoming Call...</h4><button onClick={answerCall}>Answer</button></div>}
+          {callAccepted && !callEnded && <button onClick={leaveCall}>End Call</button>}
         </div>
-        <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Ask something..." />
-        <button onClick={sendAiMessage}>Ask AI</button>
       </div>
+  
+      {/* Right Section - Chat & AI */}
+      <div className="right-section">
+        <div className="chat-section">
+          <h3>Ai Chat</h3>
+          <div className="chat-box">
+            {messages.map((msg) => (<p><strong>{msg.sender}</strong>: {msg.message}</p>))}
+          </div>
+          <div className="chat-input">
+            <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type a message..." />
+            <button onClick={sendMessage}>Send</button>
+          </div>
+        </div>
+{/*   
+        <div className="ai-chat-section">
+          <h3>💡 Talk to Cleo (AI)</h3>
+          <div className="chat-box">
+            {aiMessages.map((msg, index) => (
+              <p key={index}>
+                <strong style={{ color: msg.sender === "Cleo (AI)" ? "blue" : "black" }}>{msg.sender}</strong>: {msg.message}
+              </p>
+            ))}
+            {loadingAI && <p style={{ color: "gray" }}><strong>Cleo (AI)</strong>: Typing...</p>}
+          </div>
+          <div className="chat-input">
+            <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Ask something..." />
+            <button onClick={sendAiMessage}>Ask AI</button>
+          </div>
+        </div> */}
+      </div>
+  
     </div>
   );
+  
 }
 
 export default App;
