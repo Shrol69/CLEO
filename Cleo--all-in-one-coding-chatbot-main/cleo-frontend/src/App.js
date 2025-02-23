@@ -28,7 +28,7 @@ function App() {
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((currentStream) => {
         setStream(currentStream);
-        myVideo.current.srcObject = currentStream;
+        if (myVideo.current) myVideo.current.srcObject = currentStream;
       })
       .catch((err) => console.error("Error accessing media devices:", err));
 
@@ -74,7 +74,7 @@ function App() {
     });
 
     peer.on("stream", (userStream) => {
-      userVideo.current.srcObject = userStream;
+      if (userVideo.current) userVideo.current.srcObject = userStream;
     });
 
     socket.on("callAccepted", (signal) => {
@@ -94,7 +94,7 @@ function App() {
     });
 
     peer.on("stream", (userStream) => {
-      userVideo.current.srcObject = userStream;
+      if (userVideo.current) userVideo.current.srcObject = userStream;
     });
 
     peer.signal(callerSignal);
@@ -127,72 +127,37 @@ function App() {
   return (
     <div className="container">
       <h1>Chat & Video Call App</h1>
-
-      {/* Video Call Section */}
       <div className="video-section">
-        <div className="video">
-          <h3>My Video</h3>
-          <video ref={myVideo} playsInline muted autoPlay />
-        </div>
-        <div className="video">
-          <h3>Partner's Video</h3>
-          {callAccepted && !callEnded && <video ref={userVideo} playsInline autoPlay />}
-        </div>
+        <video ref={myVideo} playsInline muted autoPlay />
+        {callAccepted && !callEnded && <video ref={userVideo} playsInline autoPlay />}
       </div>
-
-      {/* Call Controls */}
       <div className="call-controls">
         <h3>Your ID: {me}</h3>
         <button onClick={() => navigator.clipboard.writeText(me)}>Copy ID</button>
         <input type="text" placeholder="Enter ID to call" onChange={(e) => setIdToCall(e.target.value)} />
         <button onClick={() => callUser(idToCall)}>Call</button>
-        {receivingCall && !callAccepted && (
-          <div>
-            <h4>Incoming Call...</h4>
-            <button onClick={answerCall}>Answer</button>
-          </div>
-        )}
+        {receivingCall && !callAccepted && <button onClick={answerCall}>Answer</button>}
         {callAccepted && !callEnded && <button onClick={leaveCall}>End Call</button>}
       </div>
-
-      {/* Chat Section */}
       <div className="chat-section">
         <h3>Chat</h3>
         <div className="chat-box">
           {messages.map((msg, index) => (
-            <p key={index}>
-              <strong>{msg.sender}</strong>: {msg.message}
-            </p>
+            <p key={index}><strong>{msg.sender}</strong>: {msg.message}</p>
           ))}
         </div>
-        <input 
-          type="text" 
-          value={message} 
-          onChange={(e) => setMessage(e.target.value)} 
-          placeholder="Type a message..." 
-        />
+        <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type a message..." />
         <button onClick={sendMessage}>Send</button>
       </div>
-
-      {/* AI Chat Section */}
       <div className="ai-chat-section">
         <h3>💡 Talk to Cleo (AI)</h3>
         <div className="chat-box">
           {aiMessages.map((msg, index) => (
-            <p key={index}>
-              <strong style={{ color: msg.sender === "Cleo (AI)" ? "blue" : "black" }}>
-                {msg.sender}
-              </strong>: {msg.message}
-            </p>
+            <p key={index}><strong style={{ color: msg.sender === "Cleo (AI)" ? "blue" : "black" }}>{msg.sender}</strong>: {msg.message}</p>
           ))}
           {loadingAI && <p style={{ color: "gray" }}><strong>Cleo (AI)</strong>: Typing...</p>}
         </div>
-        <input 
-          type="text" 
-          value={aiInput} 
-          onChange={(e) => setAiInput(e.target.value)} 
-          placeholder="Ask something..." 
-        />
+        <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Ask something..." />
         <button onClick={sendAiMessage}>Ask AI</button>
       </div>
     </div>

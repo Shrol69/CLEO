@@ -51,6 +51,27 @@ async function getGeminiResponse(userMessage) {
   }
 }
 
+// ✅ Test AI API manually before integrating with the frontend
+app.post("/test-ai", async (req, res) => {
+  const { message } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  try {
+    console.log(`🔄 Testing Gemini API with message: "${message}"`);
+    const aiMessage = await getGeminiResponse(message);
+
+    console.log(`✅ AI Response: "${aiMessage}"`);
+    res.json({ aiResponse: aiMessage });
+
+  } catch (error) {
+    console.error("🚨 AI API Error:", error.message);
+    res.status(500).json({ error: "AI API request failed" });
+  }
+});
+
 // Store chat history for AI context
 const chatHistory = {};
 
@@ -59,42 +80,43 @@ io.on("connection", (socket) => {
   console.log(`✅ User connected: ${socket.id}`);
   socket.emit("me", socket.id);
 
-  // ✅ Handle Call Events
+  socket.on("sendMessage", async ({ sender, message }) => {
+    io.emit("receiveMessage", { sender, message });
+
+    if (!chatHistory[sender]) chatHistory[sender] = [];
+    chatHistory[sender].push({ role: "user", content: message });
+
+    // ✅ Always trigger AI response
+    io.emit("receiveMessage", { sender: "Cleo (AI)", message: "Typing..." });
+
+    try {
+      console.log(`🔄 AI Processing for ${sender}: "${message}"`);
+      const aiMessage = await getGeminiResponse(message);
+
+      console.log(`✅ AI Response: "${aiMessage}"`);
+      io.emit("receiveMessage", { sender: "Cleo (AI)", message: aiMessage });
+
+      chatHistory[sender].push({ role: "assistant", content: aiMessage });
+
+    } catch (error) {
+      console.error("🚨 AI API Error:", error.message);
+      io.emit("receiveMessage", { sender: "Cleo (AI)", message: "Sorry, I couldn't process that." });
+    }
+  });
+
+  // ✅ Handle video call signaling
   socket.on("callUser", ({ userToCall, signalData, from }) => {
-    console.log(`📞 Call from ${from} to ${userToCall}`);
     io.to(userToCall).emit("callIncoming", { signal: signalData, from });
   });
 
   socket.on("answerCall", (data) => {
-    console.log(`✅ Call accepted by ${data.to}`);
     io.to(data.to).emit("callAccepted", data.signal);
   });
 
   socket.on("disconnect", () => {
     console.log(`❌ User disconnected: ${socket.id}`);
     io.emit("userDisconnected", socket.id);
-  });
-
-  // ✅ Handle Real-time Chat
-  socket.on("sendMessage", async ({ sender, message }) => {
-    console.log(`💬 Message from ${sender}: ${message}`);
-    io.emit("receiveMessage", { sender, message });
-  });
-
-  // ✅ AI Chat Integration
-  socket.on("sendAIMessage", async ({ sender, message }) => {
-    console.log(`🤖 AI request from ${sender}: ${message}`);
-
-    if (!chatHistory[sender]) {
-      chatHistory[sender] = [];
-    }
-
-    chatHistory[sender].push({ sender, message });
-
-    const aiResponse = await getGeminiResponse(message);
-    chatHistory[sender].push({ sender: "Cleo (AI)", message: aiResponse });
-
-    io.emit("receiveAIResponse", { sender: "Cleo (AI)", message: aiResponse });
+    delete chatHistory[socket.id]; // Remove chat history on disconnect
   });
 });
 
